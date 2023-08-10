@@ -1,0 +1,451 @@
+import tkinter
+from tkinter import *
+from tkinter import ttk
+import customtkinter
+from PIL import Image, ImageTk
+import cv2
+from cvzone.HandTrackingModule import HandDetector
+from cvzone.ClassificationModule import Classifier
+import numpy as np
+import math 
+import tkinter.font as font
+import time
+
+customtkinter.set_appearance_mode("dark")  # Modes: system (default), light, dark
+customtkinter.set_default_color_theme("blue")  # Themes: blue (default), dark-blue, green
+
+
+ontop = False
+global ikkuna
+global cam
+def setflag(event):
+    global ontop
+    ontop = False
+
+class Window:
+    def __init__(self, master,word):
+        print("window")
+        Word =word
+
+        canvas = Canvas(master, height=450, width=450, bg="black")
+        #canvas.pack()
+
+        frame1 = customtkinter.CTkFrame(master,width=300,height=1900)
+        frame1.pack()
+
+        camfromlist = customtkinter.CTkButton(root, text="Camera",width=100,command=lambda: camList(Word))
+        camfromlist.place(relx=0.95, rely=0.1,anchor='e')
+
+        hbar=Scrollbar(frame1,orient=HORIZONTAL)
+        hbar.pack(side=BOTTOM,fill=X)
+        hbar.config(command=canvas.xview)
+        
+
+        canvas.config(width=300,height=300)
+        canvas.config(xscrollcommand=hbar.set)
+        canvas.pack(side=LEFT,expand=True,fill=BOTH)
+
+        #MainWindow = canvas.create_window(10,15,window=frame1, anchor='nw',width=1175,height=520)
+
+        xx = 10
+        list = [*word]
+        for x in list:
+            ex = x+'.jpg'
+            image = Image.open(ex)
+            resize_image = image.resize((200, 200))
+            img = ImageTk.PhotoImage(resize_image)
+
+            label1 = Label(frame1,image=img)
+            label1.image = img
+            #label1.pack(pady=20)
+            label2 = Label(frame1,text=x,font=('Arial',25))
+            #label2.pack()
+            #label1.place(relx=0.2, rely=0.3,anchor='e')
+        
+            label1.place(x=xx,y=50)
+            label2.place(x=xx+80,y=300)
+            xx = xx+250
+
+
+            print(xx)
+        if xx < 1175:
+            MainWindow = canvas.create_window(10,15,window=frame1, anchor='nw',width=1175,height=520)
+            canvas.config(scrollregion=(0,0,xx,1500))
+            canvas.pack()
+        else:
+            MainWindow = canvas.create_window(10,15,window=frame1, anchor='nw',width=xx+150,height=520)
+            canvas.config(scrollregion=(0,0,xx,1500))
+            canvas.pack()
+
+
+
+root = customtkinter.CTk()  
+root.geometry("400x440")
+root.title("ASL Translator")
+
+root.resizable(0,0)
+#root.minsize(400,400)
+#root.maxsize(800, 440)
+
+#def camMenu():
+
+def camMenu():
+    for widgets in root.winfo_children():
+        widgets.destroy()
+
+    root.geometry("500x440")    
+    #w.destroy()
+
+    global paneeli_image
+    global win1
+    global frame
+    global ikkuna
+    
+    #ikkuna=tkinter.Tk()
+    #ikkuna.title("Real Time Hand Detection Gesture")
+    frame1 = customtkinter.CTkFrame(root, corner_radius=20,width=450,height=50)
+    frame1.pack()
+    label = customtkinter.CTkLabel(frame1, text="Real Time Detection", font=('Arial',20),justify=CENTER)
+    label.pack()
+
+    frame=np.random.randint(0,255,[100,100,3],dtype='uint8')
+
+    img = ImageTk.PhotoImage(Image.fromarray(frame))
+
+    paneeli_image=tkinter.Label(root) #,image=img)
+    paneeli_image.pack()
+
+    
+    global cam
+    painike_korkeus=10
+    myFont = font.Font(size=15)
+
+    painike_1=tkinter.Button(root,text="BACK TO MENU",command=lopeta,height=2,width=30,bg='#54FA9B')
+    painike_1['font'] = myFont
+    painike_1.place(y=550,x=200)
+
+    otakuva()
+
+
+def camList(word):
+    #for widgets in root.winfo_children():
+    #    widgets.destroy()
+
+    print(word)
+
+    
+
+
+    global paneeli_image
+    global win1
+    global frame
+    global ikkuna
+    global ontop
+
+    if not ontop:
+
+        ikkuna=customtkinter.CTkToplevel(root)
+        ikkuna.title("Real Time Hand Detection Gesture")
+        ikkuna.geometry("500x380")
+        frame1 = customtkinter.CTkFrame(ikkuna, corner_radius=20,width=450,height=50)
+        frame1.pack()
+        label = customtkinter.CTkLabel(frame1, text="Real Time Detection", font=('Arial',20),justify=CENTER)
+        label.pack()
+
+        paneeli_image=tkinter.Label(ikkuna) #,image=img)
+        paneeli_image.pack()
+
+        ikkuna.bind('<Destroy>',setflag)
+
+
+
+
+        otakuva()
+    ontop = True
+
+    
+
+
+
+def otakuva():
+    global frame
+    global cam
+    
+    ####change cam here####################
+    cam = cv2.VideoCapture(1)
+
+    detector = HandDetector(maxHands=1)
+    classifier = Classifier("Model/keras_model.h5","Model/labels.txt")
+
+    offset = 20
+    imgSize = 300
+    counter = 0
+
+    labels = ["A","B","C","D","E","F","G","H","I","K","L","M","N","O","P","Q","R","PalmOpen"]
+
+    #cv2.namedWindow("Experience_in_AI camera")
+    while True:
+        success, img = cam.read()
+
+        if img is None:
+            break
+
+        
+        imgOut = img.copy() 
+
+        hands, img = detector.findHands(img)
+
+        if hands:
+            hand = hands[0]
+            x,y,w,h = hand['bbox']
+            imgWhite = np.ones((imgSize,imgSize,3),np.uint8)*255
+            imgCrop = img[y-offset:y+h+offset,x-offset:x+w+offset]
+            imgCropShape = imgCrop.shape
+
+            aspectRatio = h/w
+            if x <= 30  or y <= 30:
+                print("Center your hand")
+                cv2.putText(imgOut, 'Center your hand', (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255),2)
+            else:
+                try:
+                    if aspectRatio > 1:
+                        k = imgSize/h
+                        wCal = math.ceil(k*w)
+                        imgResize = cv2.resize(imgCrop, (wCal,imgSize))
+                        imgResizeShape = imgResize.shape
+                        wGap = math.ceil((imgSize-wCal)/2)
+                        imgWhite[:,wGap:wCal+wGap] = imgResize
+                        prediction,index = classifier.getPrediction(imgWhite)
+                    else:
+                        k = imgSize/w
+                        hCal = math.ceil(k*h)
+                        imgResize = cv2.resize(imgCrop, (imgSize,hCal))
+                        imgResizeShape = imgResize.shape
+                        hGap = math.ceil((imgSize-hCal)/2)
+                        imgWhite[hGap:hCal+hGap,:] = imgResize
+                        prediction,index = classifier.getPrediction(imgWhite)
+
+
+                    
+                    
+
+                    cv2.putText(imgOut, labels[index], (x,y-20), cv2.FONT_HERSHEY_COMPLEX, 2, (255,0,255),2)
+                    cv2.rectangle(imgOut, (x-offset,y-offset), (x+w+offset,y+h+offset), (255,0,255),2)
+                except:
+                    print("SSSSS")
+
+
+        #Update the image to tkinter...
+        global frame
+        #frame=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+        global paneeli_image
+        img_update = ImageTk.PhotoImage(Image.fromarray(imgOut))
+        paneeli_image.configure(image=img_update)
+        paneeli_image.image=img_update
+        paneeli_image.update()
+
+
+        if not success:
+            print("failed to grab frame")
+            break
+
+
+
+def lopeta():
+    global cam
+    cam.release()
+    cv2.destroyAllWindows()
+    print("Stopped!")
+    Menu()
+
+def camlistEnd():
+    global cam
+    global ikkuna
+    cam.release()
+    cv2.destroyAllWindows()
+    ikkuna.destroy()
+
+
+    print("Stopped!")
+
+
+
+
+
+
+
+def Menu():
+
+    for widgets in root.winfo_children():
+        widgets.destroy()
+
+    root.geometry("400x440")
+    titleMenu = customtkinter.CTkFrame(root, corner_radius=20,width=300,height=800)
+    titleMenu.pack(pady=10, padx=20)
+
+    label = customtkinter.CTkLabel(titleMenu, text="Real Time Hand\nGesture Detection", font=('Arial',25))
+    label.place(x=50, y=20)
+
+    optionsFrame = customtkinter.CTkFrame(root, corner_radius=20,width=300,height=400)
+    #optionsFrame.pack(pady=10)
+
+    ##############BUTTTONS###################################
+    camopen = customtkinter.CTkButton(titleMenu, text="Camera",command=camMenu)
+    camopen.place(x=85, y=120)
+
+    listofwords = customtkinter.CTkButton(titleMenu, text="List of Words", command=listW)
+    listofwords.place(x=85, y=180)
+
+    options = customtkinter.CTkButton(titleMenu, text="Options")
+    options.place(x=85, y=300)
+
+    ASL = customtkinter.CTkButton(titleMenu, text="ASL")
+    ASL.place(x=85, y=240)
+    ##############BUTTTONS###################################
+
+def btn1(args):
+    print('funtion btn1')
+    Word = args
+    for widgets in root.winfo_children():
+        widgets.destroy()
+
+    
+
+    #WordFrame = customtkinter.CTkFrame(root, corner_radius=20,width=300,height=50)
+    #WordFrame.pack(pady=10, padx=20)
+    #label = customtkinter.CTkLabel(WordFrame, text=Word, font=('Arial',25))
+    #label.place(relx=0.5, rely=0.5, anchor=tkinter.CENTER)
+
+    
+    textbox = customtkinter.CTkTextbox(root,height=50,width=300,font=("Helvetica", 32),corner_radius=10)
+    textbox.configure(wrap='none',padx=50)
+    textbox.insert(INSERT, Word)
+    textbox.configure(state=DISABLED)
+
+    textbox.pack(pady=10, padx=20)
+    v=Scrollbar(textbox, orient='horizontal')
+    
+    #dissect(Word,root)
+    window = Window(root,Word)
+
+    bck = customtkinter.CTkButton(root, text="BACK",command=listW)
+    bck.place(relx=0.2, rely=0.1,anchor='e')
+
+
+
+def button_event():
+    print("button pressed")
+
+def listW():
+    #print('funtion listW')
+    for widgets in root.winfo_children():
+        widgets.destroy()
+        
+
+    root.geometry("800x440")
+
+
+    CollectionOfWords = customtkinter.CTkFrame(root, corner_radius=20,width=300,height=50)
+    CollectionOfWords.pack(pady=10, padx=20)
+
+    Back = customtkinter.CTkButton(root, text="Back",command=Menu,width=90)
+    Back.place(relx=0.2, rely=0.1,anchor='e')
+
+
+
+    label = customtkinter.CTkLabel(CollectionOfWords, text="Collection Of Words", font=('Arial',25))
+    label.place(relx=0.5, rely=0.5, anchor=tkinter.CENTER)
+    ButtonFrame = customtkinter.CTkFrame(root, corner_radius=20, width=700,height=600)
+    #ButtonFrame.pack(pady=20)
+
+    tabview = customtkinter.CTkTabview(root,width=700,height=340)
+    tabview.pack(padx=20, pady=10)
+
+    tabview.add("tab1")  
+    tabview.add("tab2")
+    tabview.add("tab3")
+    tabview.add("tab4")  
+    tabview.set("tab1") 
+
+    button1 = customtkinter.CTkButton(tabview.tab("tab1"), text="HELLO", command=lambda: btn1("HELLOOOOOOOOO"))
+    button1.place(relx=0.3, rely=0.1,anchor='e')
+
+    button2 = customtkinter.CTkButton(tabview.tab("tab1"), text="WHEN", command=lambda: btn1("WHEN"))
+    button2.place(relx=0.6, rely=0.1,anchor='e')
+
+    button3 = customtkinter.CTkButton(tabview.tab("tab1"), text="WHERE", command=lambda: btn1("WHERE"))
+    button3.place(relx=0.9, rely=0.1,anchor='e')
+
+    button4 = customtkinter.CTkButton(tabview.tab("tab1"), text="Time", command=lambda: btn1("Time"))
+    button4.place(relx=0.3, rely=0.3,anchor='e')
+
+    button5 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button5.place(relx=0.6, rely=0.3,anchor='e')
+
+    button6 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button6.place(relx=0.9, rely=0.3,anchor='e')
+
+    button6 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button6.place(relx=0.3, rely=0.5,anchor='e')
+
+    button6 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button6.place(relx=0.6, rely=0.5,anchor='e')
+
+    button6 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button6.place(relx=0.9, rely=0.5,anchor='e')
+
+    button7 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button7.place(relx=0.3, rely=0.7,anchor='e')
+
+    button8 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button8.place(relx=0.6, rely=0.7,anchor='e')
+
+    button9 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button9.place(relx=0.9, rely=0.7,anchor='e')
+
+    button9 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button9.place(relx=0.3, rely=0.9,anchor='e')
+
+    button10 = customtkinter.CTkButton(tabview.tab("tab1"), text="BUTTON2", command=button_event)
+    button10.place(relx=0.6, rely=0.9,anchor='e')
+
+    button11 = customtkinter.CTkButton(tabview.tab("tab1"), text="Phrase 1", command=button_event)
+    button11.place(relx=0.9, rely=0.9,anchor='e')
+
+    button12 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button12.place(relx=0.3, rely=0.1,anchor='e')
+
+    button12 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button12.place(relx=0.6, rely=0.1,anchor='e')
+
+    button13 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button13.place(relx=0.9, rely=0.1,anchor='e')
+
+    button14 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button14.place(relx=0.3, rely=0.3,anchor='e')
+
+    button15 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button15.place(relx=0.6, rely=0.3,anchor='e')
+
+    button16 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button16.place(relx=0.9, rely=0.3,anchor='e')
+
+    button17 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button17.place(relx=0.3, rely=0.5,anchor='e')
+
+    button17 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button17.place(relx=0.6, rely=0.5,anchor='e')
+
+    button17 = customtkinter.CTkButton(tabview.tab("tab2"), text="Phrase 1", command=button_event)
+    button17.place(relx=0.9, rely=0.5,anchor='e')
+
+
+
+
+
+Menu()
+
+
+
+root.resizable(False,False)
+root.mainloop()
